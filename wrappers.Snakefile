@@ -43,7 +43,7 @@ rule map_back_reads:
         sample=[config['r1'], config['r2']]
         index=expand('contigs.{ext}', ext=('1.bt2', '2.bt2', '3.bt2', '4.bt2', 'rev.1.bt2', 'rev.2.bt2')),
     output:
-        pipe('unsorted.sam')
+        pipe('unsorted.bam')
     params:
         index='contigs',
         extra='',
@@ -52,7 +52,7 @@ rule map_back_reads:
 
 
 rule map_sort:
-    input: 'unsorted.sam'
+    input: 'unsorted.bam'
     output: 'sorted.bam'
     wrapper: '0.64.0/bio/samtools/sort'
 
