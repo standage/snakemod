@@ -1,73 +1,106 @@
-all:
-    input: 'sorted.bam'
-    run: print('Yay, all done!')
+rule all:
+    input:
+        "analysis/sorted.bam.idxstats",
+    run:
+        print("Yay, all done!")
+
+
+
+rule copyseq:
+    input:
+        r1=config["reads1"],
+        r2=config["reads2"],
+    output:
+        left="seq/reads-R1.fastq",
+        right="seq/reads-R2.fastq",
+    shell:
+        """
+        cp {input.r1} {output.left}
+        cp {input.r2} {output.right}
+        """
 
 
 rule downsample:
     input:
-        r1=config['r1'],
-        r2=config['r2'],
+        r1=rules.copyseq.output.left,
+        r2=rules.copyseq.output.right,
     output:
-        left='subset_1.fastq',
-        right='subset_2.fastq',
-    threads: 2
+        left="seq/reads-subset-R1.fastq",
+        right="seq/reads-subset-R2.fastq",
+    params:
+        numreads=config["sample_numreads"],
+        seed=config["sample_seed"],
     shell:
-        '''
-        seqtk sample -s100 {input.r1} {config[numreads]} > {output.left} &
-        seqtk sample -s100 {input.r2} {config[numreads]} > {output.right}
-        '''
+        """
+        seqtk sample -s{params.seed} {input.r1} {params.numreads} > {output.left}
+        seqtk sample -s{params.seed} {input.r2} {params.numreads} > {output.right}
+        """
 
 
 rule spades:
     input:
-        r1='subset_1.fastq',
-        r2='subset_2.fastq',
-    output: 'contigs.fasta'
+        r1=rules.downsample.output.left,
+        r2=rules.downsample.output.right,
+    output:
+        asmbl="analysis/spades/scaffolds.fasta",
     params:
-        outdir='analysis/spades/{SAMPLE}'
+        outdir="analysis/spades/",
     threads: 32
-    shell: 'spades.py -1 {input.r1} -2 {input.r2} -t {threads} -o . --careful'
-
+    shell:
+        "spades.py -1 {input.r1} -2 {input.r2} -t {threads} -o {params.outdir} --careful"
 
 
 rule index_assembly:
     input:
-        asm='contigs.fasta'
+        asmbl=rules.spades.output.asmbl,
     output:
-        index=expand('contigs.{ext}', ext=('1.bt2', '2.bt2', '3.bt2', '4.bt2', 'rev.1.bt2', 'rev.2.bt2'))
-    shell: 'bowtie2-build {input.asm} contigs'
+        index=expand(
+            rules.spades.output.asmbl + ".{ext}",
+            ext=("1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"),
+        ),
+    shell:
+        "bowtie2-build {input.asmbl} {input.asmbl}"
 
 
 rule map_back_reads:
     input:
-        index=expand('contigs.{ext}', ext=('1.bt2', '2.bt2', '3.bt2', '4.bt2', 'rev.1.bt2', 'rev.2.bt2')),
-        r1=config['r1'],
-        r2=config['r2'],
+        asmbl=rules.spades.output.asmbl,
+        r1=rules.copyseq.output.left,
+        r2=rules.copyseq.output.right,
+        index=rules.index_assembly.output.index,
     output:
-        sam=pipe('unsorted.bam')
-    threads: 32
+        bam=pipe("analysis/unsorted.bam"),
+    threads: workflow.cores - 1
     shell:
-        '''
-        bowtie2 -p {threads} -x {input.asm} -1 {input.r1} -2 {input.r2} \
-        | samtools view -q 10 -Sbh > {output.bam}
-        '''
+        """
+        bowtie2 -p {threads} -x {input.asmbl} -1 {input.r1} -2 {input.r2} \
+            | samtools view -q 10 -Sbh > {output.bam}
+        """
 
 
 rule map_sort:
-    input: 'unsorted.bam'
-    output: 'sorted.bam'
-    shell: 'samtools sort -o {output} {input}'
+    input:
+        bam=rules.map_back_reads.output.bam,
+    output:
+        bam="analysis/sorted.bam",
+    shell:
+        "samtools sort -o {output} {input}"
 
 
 rule index_bam:
-    input: 'sorted.bam'
-    output: 'sorted.bam.bai'
-    shell: 'samtools index {input}'
+    input:
+        bam=rules.map_sort.output.bam,
+    output:
+        bai=f"{rules.map_sort.output.bam}.bai",
+    shell:
+        "samtools index {input}"
 
 
 rule bam_stats:
     input:
-        bam='sorted.bam',
-        bai='sorted.bam.bai'
-    output: 'sorted.bam.idxstats'
-    shell: 'samtools idxstats {input.bam} > {output}'
+        bam=rules.map_sort.output.bam,
+        bai=rules.index_bam.output.bai,
+    output:
+        stats=f"{rules.map_sort.output.bam}.idxstats",
+    shell:
+        "samtools idxstats {input.bam} > {output.stats}"
