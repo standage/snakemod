@@ -1,3 +1,4 @@
 sandbox/
 .ipynb_checkpoints/
 .snakemake/
+sample057-R?.fastq

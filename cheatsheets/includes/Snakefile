@@ -1,0 +1,9 @@
+include: "asmbl.smk"
+include: "map.smk"
+
+
+rule all:
+    input:
+        "analysis/sorted.bam.idxstats",
+    run:
+        print("Yay, all done!")
