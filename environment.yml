@@ -6,6 +6,7 @@ channels:
 dependencies:
   - bowtie2=2.4.1
   - curl=7.71.1
+  - pigz=2.3.4
   - samtools=1.10
   - seqtk=1.3
   - snakefmt=0.1.5

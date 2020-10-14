@@ -22,25 +22,22 @@ rule copyseq:
 
 rule downsample:
     input:
-        r1=rules.copyseq.output.left,
-        r2=rules.copyseq.output.right,
+        f1=rules.copyseq.output.left,
+        f2=rules.copyseq.output.right,
     output:
-        left="seq/reads-subset-R1.fastq",
-        right="seq/reads-subset-R2.fastq",
+        f1="seq/reads-subset-R1.fastq.gz",
+        f2="seq/reads-subset-R2.fastq.gz",
     params:
-        numreads=config["sample_numreads"],
+        n=config["sample_numreads"],
         seed=config["sample_seed"],
-    shell:
-        """
-        seqtk sample -s{params.seed} {input.r1} {params.numreads} > {output.left}
-        seqtk sample -s{params.seed} {input.r2} {params.numreads} > {output.right}
-        """
+    wrapper:
+        "0.64.0/bio/seqtk/subsample/pe"
 
 
 rule spades:
     input:
-        r1=rules.downsample.output.left,
-        r2=rules.downsample.output.right,
+        r1=rules.downsample.output.f1,
+        r2=rules.downsample.output.f2,
     output:
         asmbl="analysis/spades/scaffolds.fasta",
     params:
