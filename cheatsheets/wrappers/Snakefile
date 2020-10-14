@@ -5,6 +5,7 @@ rule all:
         print("Yay, all done!")
 
 
+
 rule copyseq:
     input:
         r1=config["reads1"],
@@ -63,43 +64,44 @@ rule index_assembly:
 
 rule map_back_reads:
     input:
-        asmbl=rules.spades.output.asmbl,
-        r1=rules.copyseq.output.left,
-        r2=rules.copyseq.output.right,
-        index=rules.index_assembly.output.index,
+        sample=[config["reads1"], config["reads2"]],
+        index=expand(
+            "analysis/spades/scaffolds.fasta.{ext}",
+            ext=("1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"),
+        ),
     output:
-        bam=pipe("analysis/unsorted.bam"),
+        pipe("analysis/unsorted.bam"),
+    params:
+        index=rules.index_assembly.input.asmbl,
+        extra="",
     threads: workflow.cores - 1
-    shell:
-        """
-        bowtie2 -p {threads} -x {input.asmbl} -1 {input.r1} -2 {input.r2} \
-            | samtools view -q 10 -Sbh > {output.bam}
-        """
+    wrapper:
+        "0.64.0/bio/bowtie2/align"
 
 
 rule map_sort:
     input:
-        bam=rules.map_back_reads.output.bam,
+        "analysis/unsorted.bam",
     output:
-        bam="analysis/sorted.bam",
-    shell:
-        "samtools sort -o {output} {input}"
+        "analysis/sorted.bam",
+    wrapper:
+        "0.64.0/bio/samtools/sort"
 
 
 rule index_bam:
     input:
-        bam=rules.map_sort.output.bam,
+        "analysis/sorted.bam",
     output:
-        bai=f"{rules.map_sort.output.bam}.bai",
-    shell:
-        "samtools index {input}"
+        "analysis/sorted.bam.bai",
+    wrapper:
+        "0.64.0/bio/samtools/index"
 
 
 rule bam_stats:
     input:
-        bam=rules.map_sort.output.bam,
-        bai=rules.index_bam.output.bai,
+        bam="analysis/sorted.bam",
+        idx="analysis/sorted.bam.bai",
     output:
-        stats=f"{rules.map_sort.output.bam}.idxstats",
-    shell:
-        "samtools idxstats {input.bam} > {output.stats}"
+        "analysis/sorted.bam.idxstats",
+    wrapper:
+        "0.64.0/bio/samtools/idxstats"
