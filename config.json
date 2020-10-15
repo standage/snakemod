@@ -1,6 +1,6 @@
 {
-    "reads1": "/Users/standage/Projects/snakemod/sample057-R1.fastq",
-    "reads2": "/Users/standage/Projects/snakemod/sample057-R2.fastq",
+    "reads1": "/home/jovyan/sample057-R1.fastq",
+    "reads2": "/home/jovyan/sample057-R2.fastq",
     "sample_numreads": 50000,
     "sample_seed": 137720190
 }
